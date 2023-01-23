@@ -37,7 +37,7 @@ async def add(update, context):
             logging.info(puuid_riot)
             name_riot = summoner['name']
             logging.info(name_riot)
-            lolcito = db.get_lolcito(name_riot)
+            lolcito = db.get_lolcito(name_riot,chat_id_telegram)
             if lolcito :
                await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito ya existe")
             else:
@@ -65,11 +65,12 @@ async def list(update, context):
 
 
 async def delete(update, context):
+    chat_id_telegram = update.effective_chat.id
     if context.args:
         name = context.args[0]
-        lolcito = db.get_lolcito(name)
-        if lolcito:
-            db.delete_lolcito(name)
+        lolcito = db.verificar_lolcito(name,chat_id_telegram)
+        if lolcito ==1:
+            db.delete_lolcito(name,chat_id_telegram)
             await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito se elimino correctamente")
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito no existe")
@@ -176,11 +177,16 @@ class db:
 
 
     #crear funcion para traer un solo registro de la tabla lolcito con el name_riot
-    def get_lolcito(self, name_riot):
+    def get_lolcito(self, name_riot, chat_id_telegram):
 
-        query = f"SELECT name FROM lolcito WHERE id_riot = '{name_riot}'"
+        query = f"SELECT name FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         return self.fetch(query)    
+    
+    def verificar_lolcito(self, name_riot, chat_id_telegram):
+        query = f"SELECT count(name) FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
+        logging.info(query)
+        return self.fetch(query)
         
         
 
@@ -200,8 +206,8 @@ class db:
         self.execute(query)
 
     #crear funcion para eliminar el registro de la tabla lolcito
-    def delete_lolcito(self, name):
-        query = f"DELETE FROM lolcito WHERE name = '{name}'"
+    def delete_lolcito(self, name, chat_id_telegram):
+        query = f"DELETE FROM lolcito WHERE name = '{name}' and chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         self.execute(query)
         logging.info("Se elimino correctamente")
