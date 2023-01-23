@@ -70,7 +70,7 @@ async def delete(update, context):
         name = context.args[0]
         lolcito = db.verificar_lolcito(name,chat_id_telegram)
         logging.info(lolcito[0][0])
-        if lolcito ==[(1,)]:
+        if lolcito[0][0] >0:
             db.delete_lolcito(name,chat_id_telegram)
             await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito se elimino correctamente")
         else:
