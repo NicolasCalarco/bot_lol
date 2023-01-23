@@ -55,7 +55,7 @@ async def list(update, context):
         for lolcito in lolcitos:
             
             logging.info(lolcito[0])
-            name_lolcito = db.get_lolcito(lolcito[0])
+            name_lolcito = db.get_lolcito(lolcito[0],chat_id_telegram)
             logging.info(name_lolcito)
             
             await context.bot.send_message(chat_id=update.effective_chat.id, text=name_lolcito[0][0])
@@ -69,7 +69,8 @@ async def delete(update, context):
     if context.args:
         name = context.args[0]
         lolcito = db.verificar_lolcito(name,chat_id_telegram)
-        if lolcito ==1:
+        logging.info(lolcito[0][0])
+        if lolcito ==[(1,)]:
             db.delete_lolcito(name,chat_id_telegram)
             await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito se elimino correctamente")
         else:
@@ -77,55 +78,60 @@ async def delete(update, context):
 
 
 #crear funcion para consultar el ranking actual de un lolcito por su id_riot en la api de riot
-async def ranking(update, context):
+async def rank(update, context):
     chat_id_telegram = update.effective_chat.id
     lolcitos = db.get_lolcitos_by_chat_id_telegram(chat_id_telegram)
     logging.info(lolcitos)
     if lolcitos:
         for lolcito in lolcitos:
             logging.info(lolcito[0])
-            match_list = riot.get_match_list(lolcito[3])
-            logging.info(match_list)
-            partidas = match_list['totalGames']
-            logging.info(partidas)
-            if partidas == 0:
-                logging.info("No hay partidas jugadas")
-                context.bot.send_message(chat_id=update.effective_chat.id, text="No hay partidas jugadas")
-                
+            stats_lolcito = riot().get_stats(lolcito[0])
+            logging.info(stats_lolcito)
+            #separar la información por tipo de queueType y guardar en variables tier , rank, lp, wins, losses
+            for stats in stats_lolcito:
+                if stats['queueType'] == "RANKED_SOLO_5x5":
+                    Name = stats['summonerName']
+                    tier = stats['tier']
+                    rank = stats['rank']
+                    lp = stats['leaguePoints']
+                    wins = stats['wins']
+                    losses = stats['losses']
+                    #mostrar porcentaje de victorias solo dos decimales
 
-            else:
-                logging.info("Hay partidas jugadas")
-                victorias = 0
-                derrotas = 0
-                logging.info(partidas)
-                for partida in match_list['matches']:
-                    logging.info(partida['gameId'])
-                
-                    match = riot.get_match(partida['gameId'])
-                    logging.info(match)
-                    if match['teams'][0]['win'] == 'Win':
-                        victorias += 1
-                    else:
-                        derrotas += 1
-                
-                db.update_victorias(lolcito[0], victorias)
-                logging.info(victorias)
-        lolcitos = db.get_lolcitos(chat_id_telegram)
-        logging.info(lolcitos)
-        lolcitos_ordenados = sorted(lolcitos, key=lambda lolcito: lolcito[6], reverse=True)
-        logging.info(lolcitos_ordenados)
-        ranking = ''
-        for lolcito in lolcitos_ordenados:
-            ranking += f"{lolcito[1]}: {lolcito[6]} victorias\n"
-            logging.info(ranking)
-        context.bot.send_message(chat_id=update.effective_chat.id, text=ranking)
-        logging.info("Se envio correctamente")
+                    pVictorias = str(round((wins/(wins+losses))*100,2))+' %'
+                    logging.info(Name)
+                    logging.info(tier)
+                    logging.info(rank)
+                    logging.info(lp)
+                    logging.info(wins)
+                    logging.info(losses)
+                    logging.info(pVictorias)
+
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text="Cuenta:  "+Name+"\nSolo/Duo: \n Tier: " + tier + " " + rank + " " + str(lp) + " LP \n Wins: " + str(wins) + " Losses: " + str(losses) + "\n Porcentaje de victorias: " + str(pVictorias))
+                    
+                elif stats['queueType'] == "RANKED_FLEX_SR":
+                    Name = stats['summonerName']
+                    tier = stats['tier']
+                    rank = stats['rank']
+                    lp = stats['leaguePoints']
+                    wins = stats['wins']
+                    losses = stats['losses']
+                    pVictorias = str(round((wins/(wins+losses))*100,2))+' %'
+                    logging.info(tier)
+                    logging.info(rank)
+                    logging.info(lp)
+                    logging.info(wins)
+                    logging.info(losses)
+
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text="Cuenta:  "+Name+"\nFlex: \n Tier: " + tier + " " + rank + " " + str(lp) + " LP \n Wins: " + str(wins) + " Losses: " + str(losses) + "\n Porcentaje de victorias: " + str(pVictorias))
+                else:
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text="Unranked")
+
     else:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="No hay lolcitos agregados")
-
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="No hay lolcitos")
 
 async def help(update, context):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Comandos: \n /add [nombre de cuenta] -Agrega al listado de cuentas. \n /list -Muestra el listado de cuentas agregadas.\n /delete [nombre de cuenta] -Elimina una cuenta del listado.\n /ranking [nombre de cuenta] -Muestra el ranking de cada cuenta \n /help")
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Comandos: \n /add [nombre de cuenta] -Agrega al listado de cuentas. \n /list -Muestra el listado de cuentas agregadas.\n /delete [nombre de cuenta] -Elimina una cuenta del listado.\n /rank  -Muestra el ranking de cada cuenta \n /help")
 class db:
     def __init__(self):
         self.cnxn = psycopg2.connect(
@@ -183,8 +189,8 @@ class db:
         logging.info(query)
         return self.fetch(query)    
     
-    def verificar_lolcito(self, name_riot, chat_id_telegram):
-        query = f"SELECT count(name) FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
+    def verificar_lolcito(self, name, chat_id_telegram):
+        query = f"SELECT count(name) FROM lolcito WHERE name = '{name}' AND chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         return self.fetch(query)
         
@@ -246,6 +252,13 @@ class riot:
             return json.loads(r.data.decode('utf-8'))
         except:
             return None
+    def get_stats(self,id_riot):
+        try:
+            url = f"https://la2.api.riotgames.com/lol/league/v4/entries/by-summoner/{id_riot}?api_key={self.api_key}"
+            r = http.request('GET', url)
+            return json.loads(r.data.decode('utf-8'))
+        except:
+            return None
 
       
     
@@ -268,7 +281,7 @@ if __name__ == '__main__':
     delete_handler = CommandHandler('delete', delete)
     application.add_handler(delete_handler)
 
-    ranking_handler = CommandHandler('ranking', ranking)
+    ranking_handler = CommandHandler('rank', rank)
     application.add_handler(ranking_handler)
 
     help_handler = CommandHandler('help', help)
