@@ -1,0 +1,9 @@
+FROM python:3.9
+
+RUN pip install --upgrade pip
+
+COPY App/bot_lol/ /code
+
+RUN pip install -r /code/requirements.txt
+
+CMD ["python", "src/bot.py"]
