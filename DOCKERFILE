@@ -1,11 +1,11 @@
 FROM python:3.9
 
 
-RUN pip install --upgrade pip
+RUN sudo pip install --upgrade pip
 
 
-COPY /src /
+COPY /src /code
 
-RUN pip install -r /src/requirements.txt
+RUN sudo pip install -r code/requirements.txt
 
-CMD ["python", "src/bot.py"]
+CMD ["python", "code/bot.py"]
