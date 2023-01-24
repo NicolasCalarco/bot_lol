@@ -6,6 +6,9 @@ import psycopg2
 import http
 import urllib3
 import json
+import threading
+import time
+
 http = urllib3.PoolManager()
 
 logging.basicConfig(
@@ -15,6 +18,57 @@ logging.basicConfig(
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, edu crack!")
+
+async def play(update, context):
+    await context.bot.send_animation(chat_id=update.effective_chat.id, animation='https://media.tenor.com/jjRNCHJPEU0AAAAd/kun-aguero.gif')
+    await context.bot.send_poll(chat_id=update.effective_chat.id, question='Sale?', options=['Si','No'])
+
+#verificar si el lolcito esta jugando
+refresh = 60
+
+def check_lolcito():
+    url_porofessor = "https://porofessor.gg/es/live/las/"
+    lolcitos = db.get_lolcitos_unicos()
+    for lolcito in lolcitos:
+
+        name = lolcito[0]
+        logging.info(name)
+        url_riot_check = "https://la2.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/"
+        condicion = http.request("GET", url_riot_check+name, headers={"X-Riot-Token":"RGAPI-9c576b50-e274-4b18-bd1c-8224ba6a1869"})
+        response = riot().status_online_in_macht(name)
+        logging.info(response)
+        
+        if condicion.status == 200:
+            last_match = db.get_lolcito_online_last_match(name)[0][1]
+            logging.info(last_match)
+            if last_match == response['gameId']:
+                pass
+            else:
+                online = True
+                db.update_lolcito_online_last_match(name,online, response['gameId'])
+                chat_telegram =  db.get_lolcito_all_chat_id_telegram(name)
+                for chat in chat_telegram:
+                    nombre_lolcito = str(db.get_lolcito_name(name)[0][0])
+                    logging.info(nombre_lolcito)
+                    payload = json.dumps({
+                        "text": f"El lolcito {nombre_lolcito} esta jugando, te dejo re tirado. \nMira las stats en {url_porofessor + nombre_lolcito} ;)",
+                        "disable_web_page_preview": False,
+                        "disable_notification": False,
+                        "reply_to_message_id": None,
+                        "chat_id": chat[0]
+                        
+                        })
+                    headers = {
+                        "accept": "application/json",
+                        "content-type": "application/json"
+                    }
+                    envio = http.request('POST', 'https://api.telegram.org/bot'+token_telegram+'/sendMessage', headers=headers, body=payload)
+                    logging.info(envio.data)
+               
+        else:
+            pass
+
+
 
 
 
@@ -163,7 +217,7 @@ class db:
         puuid_riot varchar(100),
         name_riot varchar(50) , 
         online boolean,
-        cantidad_partidas int,
+        last_match int,
         cant_victorias int, 
         last_update TIMESTAMP default NOW())
         """
@@ -180,6 +234,22 @@ class db:
     def get_lolcitos_by_chat_id_telegram(self, chat_id_telegram):
         query = f"SELECT id_riot FROM lolcito WHERE chat_id_telegram = '{chat_id_telegram}'"
         return self.fetch(query)
+    
+    def get_lolcito_all_chat_id_telegram(self,riot_id):
+        query = f"SELECT chat_id_telegram FROM lolcito WHERE id_riot = '{riot_id}'"
+        return self.fetch(query)
+    
+    def update_lolcito_online_last_match(self,riot_id,online,last_match):
+        query = f"UPDATE lolcito SET online = {online}, last_match = '{last_match}' WHERE id_riot = '{riot_id}'"
+        logging.info(query)
+        self.execute(query)
+        logging.info("Se actualizo correctamente")
+    
+    def get_lolcito_online_last_match(self,riot_id):
+        query = f"SELECT online, last_match FROM lolcito WHERE id_riot = '{riot_id}' limit(1)"
+        return self.fetch(query)
+
+
 
 
     #crear funcion para traer un solo registro de la tabla lolcito con el name_riot
@@ -193,6 +263,11 @@ class db:
         query = f"SELECT count(name) FROM lolcito WHERE name = '{name}' AND chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         return self.fetch(query)
+    
+    def get_lolcito_name(self, id_riot):
+        query = f"SELECT name FROM lolcito WHERE id_riot = '{id_riot}' limit(1)"
+        logging.info(query)
+        return self.fetch(query)
         
         
 
@@ -201,15 +276,9 @@ class db:
         query = "SELECT * FROM lolcito"
         return self.fetch(query)
 
-    #crear funcion para actualizar el registro , id_riot, account_id_riot, puuid_riot, name_riot, online
-    def update_lolcito(self, id_riot, account_id_riot, puuid_riot, name_riot, online, name):
-        query = f"UPDATE lolcito SET id_riot = '{id_riot}', account_id_riot = '{account_id_riot}', puuid_riot = '{puuid_riot}', name_riot = '{name_riot}', online = '{online}' WHERE name = '{name}'"
-        self.execute(query)
-    
-    #crear funcion para actualizar el totalizador de victorias de un summoner
-    def update_lolcito_victorias(self, cant_victorias, account_id_riot):
-        query = f"UPDATE lolcito SET cant_victorias = '{cant_victorias}' WHERE name = '{account_id_riot}'"
-        self.execute(query)
+    def get_lolcitos_unicos(self):
+        query = "SELECT DISTINCT id_riot FROM lolcito"
+        return self.fetch(query)
 
     #crear funcion para eliminar el registro de la tabla lolcito
     def delete_lolcito(self, name, chat_id_telegram):
@@ -247,6 +316,7 @@ class riot:
 #crear funcion para consultar los datos de una partida
     def get_match(self, match_id):
         try:
+            
             url = f"https://la2.api.riotgames.com/lol/match/v4/matches/{match_id}?api_key={self.api_key}"
             r = http.request('GET', url)
             return json.loads(r.data.decode('utf-8'))
@@ -255,6 +325,14 @@ class riot:
     def get_stats(self,id_riot):
         try:
             url = f"https://la2.api.riotgames.com/lol/league/v4/entries/by-summoner/{id_riot}?api_key={self.api_key}"
+            r = http.request('GET', url)
+            return json.loads(r.data.decode('utf-8'))
+        except:
+            return None
+
+    def status_online_in_macht(self, id_riot):
+        try:
+            url = f"https://la2.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/{id_riot}?api_key={self.api_key}"
             r = http.request('GET', url)
             return json.loads(r.data.decode('utf-8'))
         except:
@@ -284,8 +362,19 @@ if __name__ == '__main__':
     ranking_handler = CommandHandler('rank', rank)
     application.add_handler(ranking_handler)
 
+    play_handler = CommandHandler('play', play)
+    application.add_handler(play_handler)
+
     help_handler = CommandHandler('help', help)
     application.add_handler(help_handler)
+
+    #correr la funcion def check_online() cada 60 segundos
+    def timer():
+        while True:
+            check_lolcito()
+            time.sleep(refresh)
+    t = threading.Thread(target=timer)
+    t.start()
 
     application.run_polling()
 
