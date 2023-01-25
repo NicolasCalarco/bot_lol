@@ -35,7 +35,7 @@ def check_lolcito():
         logging.info(name)
         url_riot_check = "https://la2.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/"
         condicion = http.request("GET", url_riot_check+name, headers={"X-Riot-Token":"RGAPI-9c576b50-e274-4b18-bd1c-8224ba6a1869"})
-        response = condicion.data.decode('utf-8')
+        response = json.loads(condicion.data)
         logging.info(response)
         #traer de condicion los valores de la key gameid
       
@@ -43,6 +43,7 @@ def check_lolcito():
         if condicion.status == 200:
             last_match = db.get_lolcito_online_last_match(name)[0][1]
             logging.info(last_match)
+            
             if last_match == response['gameId']:
                 pass
             else:
