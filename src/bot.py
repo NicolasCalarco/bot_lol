@@ -25,10 +25,11 @@ async def play(update, context):
 
 async def last(update, context):
     #if context.args[0]==None:
-        
+    logging.info(context.args)
     if context.args !=None:
+
         chat_id_telegram = update.effective_chat.id
-        lolcito = context.args[0]
+        lolcito = context.args
         verificar_name = db.verificar_lolcito(lolcito,chat_id_telegram)[0][0]
         if verificar_name>0:
             name = riot().get_summoner_by_name(lolcito)
