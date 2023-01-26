@@ -26,7 +26,7 @@ async def play(update, context):
 async def last(update, context):
     #if context.args[0]==None:
         
-    if context.args[0]!=None:
+    if context.args !=None:
         chat_id_telegram = update.effective_chat.id
         lolcito = context.args[0]
         verificar_name = db.verificar_lolcito(lolcito,chat_id_telegram)[0][0]
