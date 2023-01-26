@@ -189,8 +189,8 @@ async def add(update, context):
             logging.info(puuid_riot)
             name_riot = summoner['name']
             logging.info(name_riot)
-            lolcito = db.get_lolcito(name_riot,chat_id_telegram)
-            if lolcito[0]==name :
+            lolcito = db.get_lolcito_count(name_riot,chat_id_telegram)
+            if lolcito[0]==1 :
                await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito ya existe")
             else:
                 db.insert_data_lolcito(name, chat_id_telegram, id_riot, account_id_riot, puuid_riot, name_riot, True)
@@ -354,6 +354,12 @@ class db:
     def get_lolcito(self, name_riot, chat_id_telegram):
 
         query = f"SELECT name FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
+        logging.info(query)
+        return self.fetch(query)   
+
+    def get_lolcito_count(self, name_riot, chat_id_telegram):
+
+        query = f"SELECT count(name) FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         return self.fetch(query)    
     
