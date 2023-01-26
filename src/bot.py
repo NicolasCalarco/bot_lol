@@ -23,6 +23,87 @@ async def play(update, context):
     await context.bot.send_animation(chat_id=update.effective_chat.id, animation='https://media.tenor.com/jjRNCHJPEU0AAAAd/kun-aguero.gif')
     await context.bot.send_poll(chat_id=update.effective_chat.id, question='Sale?', options=['Si','No'])
 
+async def last(update, context):
+    if context.args[0]==None:
+        chat_id_telegram = update.effective_chat.id
+        lolcitos = db.get_lolcitos_by_chat_id_telegram(chat_id_telegram)
+        for lolcito in lolcitos:
+            name = lolcito[0]
+            last_match = db.get_lolcito_online_last_match(name)[0][1]
+            response_last_match = riot().get_last_match(last_match)
+            for match in response_last_match['info']:
+                tipo_partida = match['gameMode']
+                for player in match['participants']:
+                    if player['summonerId'] == name:
+                        summer_name = player['summonerName']
+                        summer_champions = player['championName']
+                        summer_role = player['role']
+                        summer_kills = player['kills']
+                        summer_deaths = player['deaths']
+                        summer_assists = player['assists']
+                        summer_kda = player['kda']
+                        summer_cs = player['totalMinionsKilled']
+                        summer_dmg = player['totalDamageDealtToChampions']
+                        summer_vision_wards = player['visionWardsBoughtInGame']
+                        summer_wins = player['win']
+                        await context.bot.send_message(chat_id=update.effective_chat.id, 
+                                                       text=f"""El ultimo match de {summer_name} le fue: \n 
+                                                       -Tipo de partida:{tipo_partida} \n
+                                                       -Campeon:{summer_champions} \n
+                                                       -Rol:{summer_role} \n
+                                                       -Kills:{summer_kills} \n
+                                                       -Deaths:{summer_deaths} \n
+                                                       -Assists:{summer_assists} \n
+                                                       -KDA:{summer_kda} \n
+                                                       -CS:{summer_cs} \n
+                                                       -Dmg:{summer_dmg} \n
+                                                       -Vision Wards:{summer_vision_wards} \n
+                                                       -Wins:{summer_wins} \n
+                                                       """)
+                    else :
+                        pass
+    elif context.args[0]!=None:
+        chat_id_telegram = update.effective_chat.id
+        lolcito = context.args[0]
+        verificar_name = db.verificar_lolcito(lolcito)[0][0]
+        if verificar_name>0:
+            name = riot().get_summoner_by_name(lolcito)
+            last_match = db.get_lolcito_online_last_match(name)[0][1]
+            response_last_match = riot().get_last_match(last_match)
+            for match in response_last_match['info']:
+                tipo_partida = match['gameMode']
+                for player in match['participants']:
+                    if player['summonerId'] == name:
+                        summer_name = player['summonerName']
+                        summer_champions = player['championName']
+                        summer_role = player['role']
+                        summer_kills = player['kills']
+                        summer_deaths = player['deaths']
+                        summer_assists = player['assists']
+                        summer_kda = player['kda']
+                        summer_cs = player['totalMinionsKilled']
+                        summer_dmg = player['totalDamageDealtToChampions']
+                        summer_vision_wards = player['visionWardsBoughtInGame']
+                        summer_wins = player['win']
+                        await context.bot.send_message(chat_id=update.effective_chat.id, 
+                                                       text=f"""El ultimo match de {summer_name} le fue: \n 
+                                                       -Tipo de partida:{tipo_partida} \n
+                                                       -Campeon:{summer_champions} \n
+                                                       -Rol:{summer_role} \n
+                                                       -Kills:{summer_kills} \n
+                                                       -Deaths:{summer_deaths} \n
+                                                       -Assists:{summer_assists} \n
+                                                       -KDA:{summer_kda} \n
+                                                       -CS:{summer_cs} \n
+                                                       -Dmg:{summer_dmg} \n
+                                                       -Vision Wards:{summer_vision_wards} \n
+                                                       -Wins:{summer_wins} \n
+                                                       """)
+                    else :
+                        pass
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="No existe ese lolcito")
+
 #verificar si el lolcito esta jugando
 refresh = 60
 
@@ -95,7 +176,7 @@ async def add(update, context):
             name_riot = summoner['name']
             logging.info(name_riot)
             lolcito = db.get_lolcito(name_riot,chat_id_telegram)
-            if lolcito :
+            if lolcito[0]==1 :
                await context.bot.send_message(chat_id=update.effective_chat.id, text="El lolcito ya existe")
             else:
                 db.insert_data_lolcito(name, chat_id_telegram, id_riot, account_id_riot, puuid_riot, name_riot, True)
@@ -258,7 +339,7 @@ class db:
     #crear funcion para traer un solo registro de la tabla lolcito con el name_riot
     def get_lolcito(self, name_riot, chat_id_telegram):
 
-        query = f"SELECT name FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
+        query = f"SELECT count(name) FROM lolcito WHERE id_riot = '{name_riot}' AND chat_id_telegram = '{chat_id_telegram}'"
         logging.info(query)
         return self.fetch(query)    
     
@@ -340,6 +421,14 @@ class riot:
             return json.loads(r.data.decode('utf-8'))
         except:
             return None
+    
+    def get_last_match(self, gameId):
+        try:
+            url = f"https://americas.api.riotgames.com/lol/match/v5/matches/LA2_{gameId}?api_key={self.api_key}"
+            r = http.request('GET', url)
+            return json.loads(r.data.decode('utf-8'))
+        except:
+            return None
 
       
     
@@ -370,6 +459,9 @@ if __name__ == '__main__':
 
     help_handler = CommandHandler('help', help)
     application.add_handler(help_handler)
+
+    last_handler = CommandHandler('last', last)
+    application.add_handler(last_handler)
 
     #correr la funcion def check_online() cada 60 segundos
     def timer():
